@@ -14,9 +14,27 @@ library(corrplot)
 LclDir <- "C:/various/kojinteki/tjb/DesertVista_Class/2023_DesertVista_Programming_Class/Prison_Statistics"
 setwd(LclDir)
 
-#ExcludeVals <- c("FEDERAL", "DISTRICT OF COLUMBIA")
-ExcludeVals <- c("FEDERAL", "ALASKA", "HAWAII")
 
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#Lets Explore AZ Data
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+AZData <-
+  list.files(pattern = "*.csv") %>% 
+  map_df(~read_csv(skip = 1, show_col_types = FALSE, .)) %>% 
+  filter(STATE == 'ARIZONA') %>%
+  rename(Entering_Prison_Per100k = VALUE, 
+       Where = STATE)
+azFile <- paste0('az.png')
+azplot <- ggplot(AZData, aes(x = YEAR, y = Entering_Prison_Per100k, color = Where)) + 
+  geom_line(size = 3) +
+  geom_point(size = 4)
+ggsave(azFile, plot=azplot, width = 9, height = 7)
+
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#Now lets have some fun with all States
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ExcludeVals <- c("FEDERAL", "ALASKA", "HAWAII")
 PData <-
   list.files(pattern = "*.csv") %>% 
   map_df(~read_csv(skip = 1, show_col_types = FALSE, .)) %>% 
@@ -28,9 +46,6 @@ vecStates <- sort(unique(pull(PData, STATE)))
 vecYears <- sort(unique(pull(PData, YEAR)))
 states_map <- map_data("state")
 
-str(states_map)
-str(PData)
-#PDataMap2 <- merge(states_map, PData, by.x = "region", by.y = "StateLC")
 PDataMap <- inner_join(states_map, PData, by = c("region" = "StateLC"))
 
 for (aYear in vecYears) {
@@ -38,7 +53,6 @@ for (aYear in vecYears) {
     filter(YEAR == aYear)
   aYearFileName <- paste0("aMap_", aYear, '.png')
   strTitle <- paste0("Year: ", aYear)
-  #str(aYearOf_PDataMap)
   print(aYearFileName)
   p1 <- ggplot(aYearOf_PDataMap, aes(x = long, y = lat, group = group, fill = IncarPer100k)) +
     geom_polygon(colour = "black") +
@@ -55,18 +69,17 @@ for (aYear in vecYears) {
 }
 
 # Thread .png's together via ImageMagick and create gif and mp4 files 
-#LclDir2 <- sub("//", "/",LclDir)  #Replace the double quotes with single quotes
-#setwd(LclDir)
 #Issue ImageMagick 'convert' command (non-R) to "paste" the .png files together
 system('"C:\\Program Files\\ImageMagick-7.1.0-Q16-HDRI\\convert" -delay 50 *.png PrisonAdmitPer100k_02.gif')
 system('"C:\\Program Files\\ImageMagick-7.1.0-Q16-HDRI\\convert" -delay 50 *.png PrisonAdmitPer100k_02.mp4')
 
 
-PData$State <- str_to_title(PData$StateLC)  #Capitialize first characters
+
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #Now create a moving bar chart with the same data
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+PData$State <- str_to_title(PData$StateLC)  #Capitialize first characters
 KeepStates <- c("ARIZONA","ARKANSAS", "CALIFORNIA", "KENTUCKY", "LOUISIANA",
                 "MAINE", "MASSACHUSETTS", "NEW HAMPSHIRE", "NEW YORK", "NORTH DAKOTA", "SOUTH DAKOTA", "TEXAS", "VERMONT")
 PDataFilt <- PData %>%  
@@ -74,9 +87,6 @@ PDataFilt <- PData %>%
   mutate(IncarPer100k = round(IncarPer100k,0),
          Values = round(VALUE,0)) %>% 
   arrange(YEAR, State) 
-#PDataFilt$Index <- cumsum(c(1,diff(PDataFilt$YEAR)!=0))
-#PDataFilt <- PDataFilt %>% 
-#  select(Index, State, IncarPer100k, YEAR, Values)  
 
 #Create multiple plots at once
 a <- ggplot(PDataFilt, aes(x = State, y = IncarPer100k, fill = State)) +
@@ -91,12 +101,15 @@ a <- ggplot(PDataFilt, aes(x = State, y = IncarPer100k, fill = State)) +
   enter_fade() + 
   exit_shrink() +
   ease_aes('cubic-in-out')
-  #ease_aes('sine-in-out')
 
 #Animate all of them together and save to a file
 a_gif <- animate(a, width = 1100, height = 700, nframes = 150, fps=4)
 anim_save("States_12.gif", a_gif)
 
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#Does this data correlate with other data?  Lets explore
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #Now read in US Census Bureau's Census of Governments and its associated annual survey state data.
@@ -105,14 +118,11 @@ anim_save("States_12.gif", a_gif)
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 LclDir <- paste0(LclDir, "/SupportInfo")
 setwd(LclDir)
-
 USCensus_State_Data_File <- 'Govt_State_Data_Bonanza_all_in_2020_Dollars.csv'
-
 USCensus_State_Data_DirFile <- paste0(LclDir, "/", USCensus_State_Data_File)
 
 str(USCensus_State_Data_DirFile)
 CensusStateData <- read_csv(USCensus_State_Data_DirFile, skip = 2, show_col_types = FALSE) %>% 
-#CensusStateData <- CensusStateData %>% 
   rename(LiqStoresRev = 3,
          EducExp = 4,
          EducAssit = 6,
@@ -130,9 +140,6 @@ CensusStateData <- read_csv(USCensus_State_Data_DirFile, skip = 2, show_col_type
   ) ) %>%  
   mutate_at(c('LiqStoresRev', 'EducExp', 'EducAssit', 'PubWelfExp'), as.numeric)
  
-str(CensusStateData)
-write_csv(CensusStateData, "CensusStateData.csv")
-
 
 PData$YEAR <- as.character(PData$YEAR)
 
@@ -145,9 +152,6 @@ Together <- Together %>%
   filter(!is.na(PubWelfExp)) %>% 
   filter(!is.na(InCarcerations)) %>% 
   select(-STATE, -VALUE, -StateLC, -State)
-
-#Together[Together == 0] <- NA
-
 vecYears <- sort(unique(pull(Together, Year)))
 
 LclDir <- paste0(LclDir, "/CorrPlots")
